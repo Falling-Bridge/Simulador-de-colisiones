@@ -17,6 +17,8 @@ se han subido archivos de muestra bajo los nombres "csv/binario/texto.txt" para 
 Dado que para el proyecto me he visto forzado a modificar la libería 'SDL_Rect.', para poder compilar y ejecutar el código, deberá usar la librería que está
 en la carpeta 'librería' del link de github.
 
+El proyecto no ha sido probado para linux, por lo que no puedo dar fé de que vaya a funcionar
+
 los siguientes son comandos del archivo makefile, que pueden ser ejecutados desde la terminal:
 
 para compilar el código, se deberá usar el comando 'mingw32-make compilar'
