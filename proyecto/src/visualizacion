@@ -1,0 +1,410 @@
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <math.h>
+#include <sys/stat.h>
+#define weigth 20
+#define size 40
+
+//se ocupa SDL_Rect* particulas que tiene los campos: particulas.x particulas.y 
+                                                   // particulas.h particulas.w 
+                                                   // particulas.d particulas.p
+
+// se copian enteros sin signo y se copian a los atributos particula.x, particula.y, particula.d, particula.p
+SDL_Rect* leercsv(FILE* archivo, int* contadorparticulas, SDL_Rect* particulas) {
+    while (fscanf(archivo, "%u,%u,%u,%u,", &particulas[*contadorparticulas].x, &particulas[*contadorparticulas].y,
+                                           &particulas[*contadorparticulas].d, &particulas[*contadorparticulas].p) == 4) {
+        (*contadorparticulas)++;
+        if (feof(archivo)) {
+            break;
+        }
+        particulas = realloc(particulas, sizeof(SDL_Rect) * ((*contadorparticulas) + 1));
+    }
+    return particulas;
+}
+
+// se copia un grupo de 32 'caracteres' de solo 1's y 0's que se tratan como numeros en base2 y se pasan a base10 ocupando los campos:
+//particula.x, particula.y, particula.d, particula.p
+SDL_Rect* leerbinario(FILE* archivo, int* contadorparticulas, SDL_Rect* particulas) {
+    char grupo[32];
+    int cuenta = 0;
+
+    while (fscanf(archivo, "%32s", grupo) == 1) {
+        int decimal = 0;
+        for (int i = 0; i < 32; i++) {
+            if (grupo[i] != '1' && grupo[i] != '0') {
+                printf("No tiene el formato especificado\n");
+                break;
+            }
+            else if (grupo[i] == '1') {
+                decimal += 1 << (31 - i);
+            }
+        }
+        switch (cuenta) {
+            case 0:
+                particulas[*contadorparticulas].x = decimal;
+                break;
+            case 1:
+                particulas[*contadorparticulas].y = decimal;
+                break;
+            case 2:
+                particulas[*contadorparticulas].d = decimal;
+                break;
+            case 3:
+                particulas[*contadorparticulas].p = decimal;
+                break;
+        }
+
+        if (feof(archivo)) {
+            break;
+        }
+
+        cuenta++;
+        if (cuenta == 4) {
+            cuenta = 0;
+            (*contadorparticulas)++;
+            particulas = realloc(particulas, sizeof(SDL_Rect) * ((*contadorparticulas) + 1));
+        }
+    }
+
+    return particulas;
+}
+
+//se busca un parentesis con 4 enteros sin signo separados por coma y se copia en los campos
+//particula.x, particula.y, particula.d, particula.p
+SDL_Rect* leertxt(FILE* archivo, int* contadorparticulas, SDL_Rect* particulas) {
+    while (fgetc(archivo) != '(' && !feof(archivo)) {
+        while (fscanf(archivo, "(%u,%u,%u,%u)", &particulas[*contadorparticulas].x, &particulas[*contadorparticulas].y,
+                                             &particulas[*contadorparticulas].d, &particulas[*contadorparticulas].p) == 4) {
+            (*contadorparticulas)++;
+            if (feof(archivo)) {
+                break;
+            }
+            particulas = realloc(particulas, sizeof(SDL_Rect) * ((*contadorparticulas) + 1));
+        }
+    }
+
+    return particulas;
+}
+
+//se muestra en la esquina superior izquierda la cantidad de partículas, cantidad de colisiones, la variable speed y la variable delay
+void Estadisticas(SDL_Renderer* renderer, TTF_Font* font, int contadorcolisiones, int *speed, int *contadorparticulas, int *delay) {
+    char texto[50];
+    SDL_Color colortexto = {255, 255, 255}; //se establece un color determinado para la muestra de las estadísticas
+    sprintf(texto, "Colisiones: %d Cantidad de particulas: %d speed: %d Delay: %d", contadorcolisiones, *contadorparticulas, *speed, *delay);
+    SDL_Surface* surface = TTF_RenderText_Solid(font, texto, colortexto);
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_Rect dstRect = {10, 10, surface->w, surface->h}; //se coloca en la esquina superior izquierda
+    SDL_RenderCopy(renderer, texture, NULL, &dstRect);
+    SDL_FreeSurface(surface);
+    SDL_DestroyTexture(texture);
+}
+
+//aquí se controla la dirección de movimiento, el cambio de direccion de movimiento, y el cambio de direccion (y de peso) causado por particulas que colisionan
+SDL_Rect* movimiento(int **contadorparticulas, SDL_Rect* particulas, int ancho, int largo, int* speed, int *contadorcolisiones) {
+    //estos son arreglos que no son facilmente randomizables
+    int superior[] = {0, 4, 5, 6, 7}; 
+    int superiorizquierda[] = {0, 6, 7};
+    int izquierda[] = {0, 1, 2, 6, 7};
+    int random; // lo que define la direccion random
+
+    //hacemos que cada particula se mueva respecto a su posicion
+    for (int i = 0; i < **contadorparticulas; i++) {
+        //Como se mueve
+        switch (particulas[i].d) {
+            case 0:  // Derecha
+                particulas[i].x += (*speed);
+                break;
+            case 1:  // Arriba Derecha
+                particulas[i].x += (*speed);
+                particulas[i].y -= (*speed);
+                break;
+            case 2:  // Arriba
+                particulas[i].y -= (*speed);
+                break;
+            case 3:  // Arriba Izquierda
+                particulas[i].x -= (*speed);
+                particulas[i].y -= (*speed);
+                break;
+            case 4:  // Izquierda
+                particulas[i].x -= (*speed);
+                break;
+            case 5:  // Abajo Izquierda
+                particulas[i].x -= (*speed);
+                particulas[i].y += (*speed);
+                break;
+            case 6:  // Abajo
+                particulas[i].y += (*speed);
+                break;
+            case 7:  // Abajo Derecha
+                particulas[i].x += (*speed);
+                particulas[i].y += (*speed);
+                break;
+        }
+
+        // Manejar rebotes entre partículas
+        for (int j = 0; j < **contadorparticulas; j++) {
+            if (i != j) {
+                int dx = particulas[i].x - particulas[j].x;
+                int dy = particulas[i].y - particulas[j].y;
+                int distancia = sqrt(dx * dx + dy * dy);
+
+                if (distancia < size) { //si estan ocupando el mismo espacio
+                    if (particulas[i].d < particulas[j].d){ // si la particula j pesa más que la particula i, se le asigna una direccion random a i
+                        particulas[i].d = rand() % 8;
+                    }
+                    else if (particulas[i].d < particulas[j].d){ // si la particula i pesa más que la particula j, se le asigna una direccion random a j
+                        particulas[j].d = rand() % 8;
+                    }
+                    else if (particulas[i].d == particulas[j].d){ // si pesan lo mismo, ambas particulas obtienen una nueva direccion random
+                        particulas[i].d = rand() % 8;
+                        particulas[j].d = rand() % 8;
+                    }
+                    (*contadorcolisiones)++; //finalmente se le agrega al contador de colisiones y se le reduce el peso a ambas particulas
+                    particulas[i].p -= 1;
+                    particulas[j].p -= 1;
+
+                    if (particulas[i].p == 0) { // si el peso llega a cero, se elimina la particula y se realoca la memoria
+                        particulas[i] = particulas[**contadorparticulas - 1];
+                        (**contadorparticulas)--;
+                        particulas = realloc(particulas, sizeof(SDL_Rect) * (**contadorparticulas));
+                        i--;
+                    }
+
+                    if (particulas[j].p == 0) { // si el peso llega a cero, se elimina la particula y se realoca la memoria
+                        particulas[j] = particulas[**contadorparticulas - 1];
+                        (**contadorparticulas)--;
+                        particulas=(SDL_Rect*)realloc(particulas,sizeof(SDL_Rect)*(**contadorparticulas));
+                        i--;
+                    }
+                }
+            }
+        }
+
+        // Manejar rebotes en los bordes
+        if (particulas[i].y < 0) { // Borde superior
+            particulas[i].y = 0;
+            random = rand() % 5;
+            particulas[i].d = superior[random];
+        }
+        if (particulas[i].x < 0) { // Borde izquierdo
+            particulas[i].x = 0;
+            random = rand() % 5;
+            particulas[i].d = izquierda[random];
+        }
+        if (particulas[i].x < 0 && particulas[i].y < 0) { // Borde superior izquierda
+            particulas[i].x = 0;
+            particulas[i].y = 0;
+            random = rand() % 3;
+            particulas[i].d = superiorizquierda[random];
+        }
+        if (particulas[i].x < 0 && particulas[i].y >= largo) { // Borde izquierdo inferior //
+            particulas[i].x = 0;
+            particulas[i].y = largo - 1;
+            particulas[i].d = rand() % 3;        
+        }
+        if (particulas[i].y >= largo) { // Borde inferior //
+            particulas[i].y = largo - 1;
+            particulas[i].d = rand() % 5;       
+        }
+        if (particulas[i].x >= ancho && particulas[i].y >= largo) { // Borde derecho inferior //
+            particulas[i].x = ancho - 1;
+            particulas[i].y = largo - 1;
+            particulas[i].d = rand() % 3 + 2;          
+        }
+        if (particulas[i].x >= ancho) { // Borde derecho //
+            particulas[i].x = ancho - 1;
+            particulas[i].d = rand() % 5 + 2;
+        }
+        if (particulas[i].x >= ancho && particulas[i].y > 0) { // Borde superior derecho
+            particulas[i].x = ancho -1;
+            particulas[i].y = 0;
+            particulas[i].d = rand() % 3 + 4;            
+        }
+    }
+    return particulas;
+}
+
+int visualizar(int* contadorparticulas, SDL_Renderer* renderer, SDL_Rect* particulas, SDL_Window* ventana, TTF_Font* font, int largo, int ancho) {
+    SDL_Event event;
+    int corriendo = 1;
+    int r = 255, g = 255, b = 255;
+    int speed = 5;
+    int contadorcolisiones = 0;
+    int estadísticas = 0;
+    int delay = 50;
+    while (corriendo) {
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // se establece el color del fonfo
+        SDL_RenderClear(renderer);
+
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_KEYDOWN) {
+                if (event.key.keysym.sym == SDLK_q) { //quit everything
+                    corriendo = 0;
+                } else if (event.key.keysym.sym == SDLK_1) { // cambiar el color de partículas y del fondo
+                    r = rand() % 256;
+                    g = rand() % 256;
+                    b = rand() % 256;
+                    SDL_SetRenderDrawColor(renderer, r, g, b, 255);
+                    SDL_RenderClear(renderer);
+                } else if (event.key.keysym.sym == SDLK_PLUS) { // agregar partículas
+                    (*contadorparticulas)++;
+                    particulas = realloc(particulas, sizeof(SDL_Rect) * ((*contadorparticulas) + 1));
+                    particulas[*contadorparticulas - 1].x = rand() % ancho;
+                    particulas[*contadorparticulas - 1].y = rand() % largo;
+                    particulas[*contadorparticulas - 1].d = rand() % 8;
+                    particulas[*contadorparticulas - 1].h = size;
+                    particulas[*contadorparticulas - 1].w = size;
+                    particulas[*contadorparticulas - 1].p = rand() % weigth + 1;
+                } else if (event.key.keysym.sym == SDLK_MINUS && *contadorparticulas > 0) { // quitar partículas
+                    (*contadorparticulas)--;
+                    particulas = realloc(particulas, sizeof(SDL_Rect) * ((*contadorparticulas) + 1));
+                } else if (event.key.keysym.sym == SDLK_2) { //elimina todas las partículas en pantalla
+                    free(particulas);
+                    *contadorparticulas = 0;
+                    particulas = (SDL_Rect*)malloc(sizeof(SDL_Rect));
+                } else if (event.key.keysym.sym == SDLK_3) { //aumenta la variable velocidad en una cantidad de entre 0 a 14
+                    speed += rand() % 15;
+                } else if (event.key.keysym.sym == SDLK_4) { //disminuye la variable velocidad en una cantidad de entre 0 a 14
+                    speed -= rand() % 15;
+                } else if (event.key.keysym.sym == SDLK_s) { //guarda la posición actual de la particulas en el archivo de nombre particuladedios en la carpeta Colisionador de Adrones
+                    char nombre_carpeta[40] = "Colisionador de Adrones";
+                    if (access(nombre_carpeta, 0) != 0) {
+                        mkdir(nombre_carpeta);
+                    }
+                    FILE* archivo_de_guardado = fopen("Colisionador de Adrones/particuladedios.txt", "w");
+                    if (archivo_de_guardado == NULL) {
+                        perror("Error al abrir el archivo");
+                        return -1;
+                    }
+
+                    fprintf(archivo_de_guardado, "c");
+                    for (int i = 0; i < *contadorparticulas; i++) {
+                        fprintf(archivo_de_guardado, "%d,%d,%d,\n", particulas[i].x, particulas[i].y, particulas[i].d);
+                    }
+                    corriendo = 0;
+                    printf("Se ha guardado la informacion de las particulas en la carpeta 'Colisionador de Adrones' en el archivo 'particuladedios.txt'\n");
+                } else if (event.key.keysym.sym == SDLK_5) { //muestra las estádistcas, sea cantidad de particulas, cantidad de colisiones, speed, delay
+                    estadísticas = 1;
+                } else if (event.key.keysym.sym == SDLK_6) { //oculta las estádisticas
+                    estadísticas = 0;
+                } else if (event.key.keysym.sym == SDLK_7) { //se le agrega una unidad a delay
+                    delay++;
+                } else if (event.key.keysym.sym == SDLK_8 && delay > 1) { //se le quita una unidad a delay mientras sea mayor a uno
+                    delay--;
+                }
+            }
+        }
+        SDL_SetRenderDrawColor(renderer, 255 - r, 255 - g, 255 - b, 255); // se establece el color de las partículas
+        SDL_RenderClear(renderer);
+        particulas = movimiento(&contadorparticulas, particulas, ancho, largo, &speed, &contadorcolisiones);
+
+        for (int i = 0; i < *contadorparticulas; i++) {
+            SDL_SetRenderDrawColor(renderer, r, g, b, 255);
+            SDL_RenderFillRect(renderer, &particulas[i]);
+        }
+
+        if (estadísticas) { // si se acciona el comando, se muestra estadísticas
+            Estadisticas(renderer, font, contadorcolisiones, &speed, contadorparticulas, &delay);
+        }
+
+        SDL_RenderPresent(renderer);
+        SDL_Delay(delay);
+    }
+    //si corriendo llega a 0 se termina el programa 
+    free(particulas);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(ventana);
+    TTF_CloseFont(font);
+    TTF_Quit();
+    SDL_Quit();
+    return 0;
+}
+
+int main(int argc, char* argv[]) {
+    char archivo[100];
+    printf("\nIngrese el nombre de su archivo:\n");
+    scanf("%s", archivo); //se ingresa el nombre del archivo
+    srand(time(NULL));
+
+    FILE* lectura = fopen(archivo, "r"); //se comprueba que el archivo se abra
+    if (lectura == NULL) {
+        perror("Error al abrir el archivo");
+        return -1;
+    }
+
+    char caracter = getc(lectura); // se lee el primer del archivo y si cumple la condición ocurre el llamado a las funciones
+    if (caracter == 'c' || caracter == 'b' || caracter == 't') {
+        SDL_Rect* particulas = (SDL_Rect*)malloc(sizeof(SDL_Rect));
+        if (particulas == NULL) {
+            perror("Error al asignar memoria");
+            return -1;
+        }
+        int contadorparticulas = 0;
+
+        if (caracter == 'c') {
+            particulas = leercsv(lectura, &contadorparticulas, particulas);
+        } else if (caracter == 'b') {
+            particulas = leerbinario(lectura, &contadorparticulas, particulas);
+        } else if (caracter == 't') {
+            particulas = leertxt(lectura, &contadorparticulas, particulas);
+        }
+
+        fclose(lectura);
+
+        SDL_Window* ventana = NULL;
+        SDL_Renderer* renderer = NULL;
+
+        //se crea una ventana del tamaño del equipo del usuario
+        ventana = SDL_CreateWindow("HOLA", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 0, 0, SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN_DESKTOP);
+        if (ventana == NULL) {
+            printf("%s\n", SDL_GetError());
+            SDL_Quit();
+            return -1;
+        }
+
+        renderer = SDL_CreateRenderer(ventana, -1, SDL_RENDERER_ACCELERATED);
+        if (renderer == NULL) {
+            printf("%s\n", SDL_GetError());
+            SDL_DestroyWindow(ventana);
+            SDL_Quit();
+            return -1;
+        }
+
+        //se inicia ttf o la función que controla la tipografía
+        if (TTF_Init() == -1) {
+            printf("%s\n", TTF_GetError());
+            SDL_Quit();
+            return -1;
+        }
+        
+        //se crea un puntero a la tipografía
+        TTF_Font* font = TTF_OpenFont("assets\\Roboto-Black.ttf", 24);
+        if (font == NULL) {
+            printf("%s\n", TTF_GetError());
+            return -1;
+        }
+
+        int ancho, largo;
+        SDL_GetWindowSize(ventana, &ancho, &largo);
+
+        for (int i = 0; i < contadorparticulas; i++) { //regulacion de los parametros de la partícula
+            particulas[i].x %= ancho;
+            particulas[i].y %= largo;
+            particulas[i].h = size;
+            particulas[i].w = size;
+            particulas[i].d %= 8;
+            particulas[i].p %= weigth;
+        }
+
+        //finalmente se llama a visualizar
+        visualizar(&contadorparticulas, renderer, particulas, ventana, font, largo, ancho);
+
+        return 0;
+    } else {
+        printf("Archivo no tiene el formato especificado\n");
+        return -1;
+    }
+}
