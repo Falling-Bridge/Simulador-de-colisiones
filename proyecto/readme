@@ -10,10 +10,14 @@ Colaboradores:
 
 Instrucciones de uso
 
+las carpetas se deben descargar en el mismo orden que fueron subidas
+
+se han subido archivos de muestra bajo los nombres "csv/binario/texto.txt" para que se siga el formato y se puedan leer nuevos archivos de manera correcta
+
 Dado que para el proyecto me he visto forzado a modificar la libería 'SDL_Rect.', para poder compilar y ejecutar el código, deberá usar la librería que está
 en la carpeta 'librería' del link de github.
 
-los siguientes son comandos modificables en el archivo makefile:
+los siguientes son comandos del archivo makefile, que pueden ser ejecutados desde la terminal:
 
 para compilar el código, se deberá usar el comando 'mingw32-make compilar'
 para ejecutar el código, se deberá usar el comando 'mingw32-make run'
