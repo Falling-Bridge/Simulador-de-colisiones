@@ -4,9 +4,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
-#include <sys/stat.h>
-#define weigth 20
-#define size 40
+#define weigth 10000000000
+#define size 10
 
 //se ocupa SDL_Rect* particulas que tiene los campos: particulas.x particulas.y 
                                                    // particulas.h particulas.w 
@@ -94,11 +93,12 @@ void Estadisticas(SDL_Renderer* renderer, TTF_Font* font, int contadorcolisiones
     char texto[50];
     SDL_Color colortexto = {255, 255, 255}; //se establece un color determinado para la muestra de las estadísticas
     sprintf(texto, "Colisiones: %d Cantidad de particulas: %d speed: %d Delay: %d", contadorcolisiones, *contadorparticulas, *speed, *delay);
-    SDL_Surface* surface = TTF_RenderText_Solid(font, texto, colortexto);
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_Surface* surface = TTF_RenderText_Solid(font, texto, colortexto); //se crea toda la 'plantilla de texto'
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface); // se 'mete' la plantilla al texto
     SDL_Rect dstRect = {10, 10, surface->w, surface->h}; //se coloca en la esquina superior izquierda
-    SDL_RenderCopy(renderer, texture, NULL, &dstRect);
-    SDL_FreeSurface(surface);
+    SDL_RenderCopy(renderer, texture, NULL, &dstRect); // hace que el texto se muestre en pantalla
+    //una vez que ya  está en el renderer, no es necesario que las otras funciones se sigan ejecutando
+    SDL_FreeSurface(surface); 
     SDL_DestroyTexture(texture);
 }
 
@@ -270,22 +270,19 @@ int visualizar(int* contadorparticulas, SDL_Renderer* renderer, SDL_Rect* partic
                 } else if (event.key.keysym.sym == SDLK_4) { //disminuye la variable velocidad en una cantidad de entre 0 a 14
                     speed -= rand() % 15;
                 } else if (event.key.keysym.sym == SDLK_s) { //guarda la posición actual de la particulas en el archivo de nombre particuladedios en la carpeta Colisionador de Adrones
-                    char nombre_carpeta[40] = "Colisionador de Adrones";
-                    if (access(nombre_carpeta, 0) != 0) {
-                        mkdir(nombre_carpeta);
-                    }
-                    FILE* archivo_de_guardado = fopen("Colisionador de Adrones/particuladedios.txt", "w");
-                    if (archivo_de_guardado == NULL) {
+
+                    FILE* name = fopen("particuladedios.txt", "w");
+                    if (name == NULL) {
                         perror("Error al abrir el archivo");
                         return -1;
                     }
 
-                    fprintf(archivo_de_guardado, "c");
+                    fprintf(name, "c\n");
                     for (int i = 0; i < *contadorparticulas; i++) {
-                        fprintf(archivo_de_guardado, "%d,%d,%d,\n", particulas[i].x, particulas[i].y, particulas[i].d);
+                        fprintf(name, "%d,%d,%d,%d\n", particulas[i].x, particulas[i].y, particulas[i].d, particulas[i].p);
                     }
                     corriendo = 0;
-                    printf("Se ha guardado la informacion de las particulas en la carpeta 'Colisionador de Adrones' en el archivo 'particuladedios.txt'\n");
+                    printf("las particulas se han guardado en el archivo 'particuladedios.txt'\n");
                 } else if (event.key.keysym.sym == SDLK_5) { //muestra las estádistcas, sea cantidad de particulas, cantidad de colisiones, speed, delay
                     estadísticas = 1;
                 } else if (event.key.keysym.sym == SDLK_6) { //oculta las estádisticas
